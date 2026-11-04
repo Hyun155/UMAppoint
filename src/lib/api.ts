@@ -19,8 +19,8 @@ export interface LecturerFull {
 }
 
 export interface AppointmentFull extends Appointment {
-  student: Person & { matric_no?: string; programme?: string };
-  lecturer: Person & { title?: string };
+  student: Person & { matric_no?: string | undefined; programme?: string | undefined };
+  lecturer: Person & { title?: string | undefined };
   reschedule_slot?: Slot | null;
 }
 
