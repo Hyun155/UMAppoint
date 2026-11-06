@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (s: Record<string, unknown>) => ({ mode: s.mode === "register" ? ("register" as const) : undefined }),
+  validateSearch: (s: Record<string, unknown>) => ({ mode: s["mode"] === "register" ? ("register" as const) : undefined }),
   head: () => ({
     meta: [
       { title: "Sign in — UMAppoint" },
@@ -39,13 +39,13 @@ function AuthPage() {
     setBusy(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     setBusy(false);
-    if (error) return toast.error(errMsg(error));
+    if (error) { toast.error(errMsg(error)); return; }
     navigate({ to: "/dashboard" });
   }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!register) return signIn(f.email, f.password);
+    if (!register) { await signIn(f.email, f.password); return; }
     setBusy(true);
     const { data, error } = await supabase.auth.signUp({
       email: f.email,
@@ -56,7 +56,7 @@ function AuthPage() {
       },
     });
     setBusy(false);
-    if (error) return toast.error(errMsg(error));
+    if (error) { toast.error(errMsg(error)); return; }
     if (data.session) navigate({ to: "/dashboard" });
     else toast.success("Account created. Check your email to confirm, then sign in.");
   }
