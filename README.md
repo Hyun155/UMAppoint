@@ -1,24 +1,158 @@
-# Build It Together
+# UMAppoint
 
-can u help me to build this
+UMAppoint is a consultation-booking portal for students and lecturers at the
+Faculty of Computer Science and Information Technology (FCSIT), Universiti
+Malaya.
 
-This project was built with [Lovable](https://lovable.dev).
+Students can find lecturers, view available consultation slots, and submit
+booking requests. Lecturers can manage their availability, review requests,
+and keep their consultation schedule in one place.
 
-## Build with Lovable
+## Features
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/ffffcebd-5066-4950-857d-d3d0788ba560).
+- Email/password authentication with separate student and lecturer roles
+- Lecturer search by name, department, or specialisation
+- Availability and consultation-slot management
+- Booking and rescheduling requests
+- Role-specific dashboards, schedules, appointment history, and profiles
+- Notifications for booking and schedule changes
+- Responsive layout for desktop and mobile screens
+- Supabase-backed authentication and application data
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+## Tech stack
 
-## Development
+- [React](https://react.dev/) 19
+- [TanStack Start](https://tanstack.com/start) and TanStack Router
+- [Vite](https://vite.dev/)
+- [TypeScript](https://www.typescriptlang.org/)
+- [Supabase](https://supabase.com/) for authentication and data
+- [Tailwind CSS](https://tailwindcss.com/) and Radix UI
+- [Vitest](https://vitest.dev/) and Testing Library
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+## Getting started
 
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
+### Prerequisites
+
+- Node.js 18 or newer
+- Bun, npm, or another Node.js package manager
+- A Supabase project, unless you are developing through the connected Lovable
+  project
+
+### Installation
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/Hyun155/build-it-together.git
+cd build-it-together
+bun install
 ```
+
+If you do not use Bun, `npm install` works as well.
+
+### Environment variables
+
+The app requires a Supabase URL and publishable key. For local Vite
+development, create a `.env.local` file in the project root:
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+```
+
+Do not commit `.env.local` or any service-role key. Server-side integrations
+may also use `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and
+`SUPABASE_SERVICE_ROLE_KEY` when those variables are provided by the
+deployment environment.
+
+### Run the development server
+
+```bash
+bun run dev
+```
+
+Open the local URL printed by Vite, usually
+`http://localhost:5173`.
+
+## Available scripts
+
+| Command | Description |
+| --- | --- |
+| `bun run dev` | Start the Vite development server |
+| `bun run build` | Create a production build |
+| `bun run build:dev` | Create a development-mode build |
+| `bun run preview` | Preview the production build locally |
+| `bun run lint` | Run ESLint |
+| `bun run format` | Format the project with Prettier |
+| `bun run test` | Run the test suite once |
+| `bun run test:watch` | Run Vitest in watch mode |
+
+The equivalent `npm run <script>` commands are also supported.
+
+## Application routes
+
+### Public routes
+
+- `/` — Landing page
+- `/auth` — Sign in and account registration
+
+### Authenticated student routes
+
+- `/dashboard` — Student overview
+- `/lecturers` — Find lecturers and available slots
+- `/appointments` — Upcoming appointments
+- `/history` — Previous consultation history
+- `/notifications` — Account notifications
+- `/profile` — Profile settings
+
+### Authenticated lecturer routes
+
+- `/dashboard` — Lecturer overview
+- `/requests` — Review booking and change requests
+- `/schedule` — Consultation schedule
+- `/availability` — Manage available slots
+- `/history` — Consultation history
+- `/notifications` — Account notifications
+- `/profile` — Profile settings
+
+Authenticated routes redirect unauthenticated users to `/auth`.
+
+## Demo accounts
+
+The sign-in page includes demo-account buttons for local or presentation use:
+
+- Demo student: `aiman.student@demo.umappoint.edu`
+- Demo lecturer: `nurul.hakim@demo.umappoint.edu`
+- Password: `Demo@1234`
+
+These accounts depend on the connected Supabase project being configured.
+
+## Project structure
+
+```text
+src/
+├── components/            Shared application and UI components
+├── integrations/supabase/ Supabase clients and generated types
+├── lib/                   Authentication, API, formatting, and utilities
+├── routes/                TanStack file-based routes
+└── test/                  Vitest and Testing Library tests
+drizzle/                   Database schema and migrations
+supabase/                  Supabase local configuration
+```
+
+`src/routeTree.gen.ts` is generated by TanStack Router. Do not edit it
+manually.
+
+## Development with Lovable
+
+This repository is connected to [Lovable](https://lovable.dev). You can
+continue development in the
+[UMAppoint Lovable project](https://lovable.dev/projects/ffffcebd-5066-4950-857d-d3d0788ba560).
+
+Changes made in Lovable are committed to this repository. Avoid rewriting
+published Git history because commits pushed to the connected branch are
+synchronized back to Lovable.
+
+## License
+
+No license has been specified for this project yet.
