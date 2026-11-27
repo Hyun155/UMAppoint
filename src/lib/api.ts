@@ -105,8 +105,9 @@ export async function fetchMyAppointments(): Promise<AppointmentFull[]> {
           ? await apiGetLecturerAppointments()
           : await apiGetMyAppointments();
 
-      if (appts && appts.length > 0) {
-        return appts.map((a) => ({
+      // A successful empty API response means this account has no appointments.
+      // Never substitute demo records for an authenticated user.
+      return appts.map((a) => ({
           id: a.id,
           ref_code: a.ref_code || a.id.slice(0, 8),
           student_id: a.student_id,
@@ -141,13 +142,13 @@ export async function fetchMyAppointments(): Promise<AppointmentFull[]> {
           },
           reschedule_slot: null,
         }));
-      }
     } catch (e) {
-      console.warn("Could not load appointments from FastAPI:", e);
+      console.error("Could not load appointments from FastAPI:", e);
+      throw e;
     }
   }
 
-  // Fallback: return demo appointments instantly so page is never stuck loading
+  // Demo appointments are only for preview mode or users without a real session.
   return demoAppointments.map((d, i) => {
     const isApproved = d.status === "Approved";
     const isChange = d.status === "Change Requested";
@@ -194,31 +195,8 @@ export async function fetchMyAppointments(): Promise<AppointmentFull[]> {
 }
 
 export async function fetchNotifications() {
-  if (getToken()) {
-    try {
-      const data = await apiGetNotifications();
-      return data;
-    } catch {
-      // fallback
-    }
-  }
-  try {
-    const { data, error } = await supabase
-      .from("notifications")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(200);
-    if (error || !data) return [];
-    return data;
-  } catch {
-    return [
-      {
-        id: "notif-1",
-        title: "Appointment approved",
-        message: "Your consultation with Dr. Nadia Rahman has been confirmed.",
-        is_read: false,
-        created_at: new Date().toISOString(),
-      },
-    ];
-  }
+  if (!getToken()) return [];
+  // A live FastAPI session must never fall back to Supabase browser queries or
+  // fabricated notifications. The FastAPI endpoint scopes results to the JWT user.
+  return apiGetNotifications();
 }

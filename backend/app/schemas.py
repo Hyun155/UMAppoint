@@ -62,6 +62,59 @@ class SlotOut(BaseModel):
 
     model_config = {"from_attributes": True}
 
+class SlotCreateRequest(BaseModel):
+    slot_date: date
+    start_time: time
+    end_time: time
+    location_type: str = "physical"
+    location: str
+    notes: Optional[str] = None
+
+    @field_validator("location_type")
+    @classmethod
+    def valid_location_type(cls, value: str) -> str:
+        value = value.strip().lower()
+        if value not in ("physical", "online"):
+            raise ValueError("location_type must be physical or online")
+        return value
+
+    @field_validator("location")
+    @classmethod
+    def valid_location(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Location cannot be empty")
+        return value
+
+
+class SlotUpdateRequest(BaseModel):
+    slot_date: Optional[date] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    location_type: Optional[str] = None
+    location: Optional[str] = None
+    notes: Optional[str] = None
+
+    @field_validator("location_type")
+    @classmethod
+    def valid_location_type(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        value = value.strip().lower()
+        if value not in ("physical", "online"):
+            raise ValueError("location_type must be physical or online")
+        return value
+
+    @field_validator("location")
+    @classmethod
+    def valid_location(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        value = value.strip()
+        if not value:
+            raise ValueError("Location cannot be empty")
+        return value
+
 
 # ---------------------------------------------------------------------------
 # Lecturers
@@ -128,6 +181,10 @@ class AppointmentOut(BaseModel):
     status: str
     lecturer_note: Optional[str] = None
     student_request_reason: Optional[str] = None
+    reschedule_date: Optional[date] = None
+    reschedule_start_time: Optional[time] = None
+    reschedule_end_time: Optional[time] = None
+    reschedule_location: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

@@ -128,6 +128,13 @@ class Appointment(Base):
 
     lecturer = relationship("Lecturer", foreign_keys=[lecturer_id], lazy="select")
     student  = relationship("Student",  foreign_keys=[student_id],  lazy="select")
+    reschedule_slot = relationship(
+        "AvailabilitySlot",
+        primaryjoin="Appointment.reschedule_slot_id == AvailabilitySlot.id",
+        foreign_keys=[reschedule_slot_id],
+        lazy="joined",
+        viewonly=True,
+    )
 
 
 class AppCredential(Base):

@@ -41,15 +41,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/lib/auth";
-import { supabase } from "@/integrations/supabase/client";
-import type { Slot } from "@/lib/format";
+import {
+  apiGetAvailabilitySlots,
+  apiCreateAvailabilitySlot,
+  apiUpdateAvailabilitySlot,
+  apiDeleteAvailabilitySlot,
+  type SlotOut,
+} from "@/lib/backend";
 import { errMsg, fmtDate, fmtRange } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Field, StatusPill } from "@/components/portal-ui";
 
 type ViewMode = "weekly" | "monthly";
 type LocationType = "in_person" | "online";
-type SlotWithStatus = Slot & { booked: boolean };
+type SlotWithStatus = SlotOut & { booked: boolean };
 
 function localDate(value: Date) {
   const date = new Date(value);
@@ -117,28 +122,18 @@ export const Route = createFileRoute("/_authenticated/availability")({
       queryKey: ["availability", me?.id, dateKey(range.start), dateKey(range.end)],
       enabled: !!me?.id,
       queryFn: async (): Promise<SlotWithStatus[]> => {
-        const { data: slots, error } = await supabase
-          .from("availability_slots")
-          .select("*")
-          .eq("lecturer_id", me!.id)
-          .gte("slot_date", dateKey(range.start))
-          .lte("slot_date", dateKey(range.end))
-          .order("slot_date")
-          .order("start_time");
-        if (error) throw error;
-        const ids = slots.map((slot) => slot.id);
-        if (!ids.length) return [];
-        const { data: appointments, error: appointmentsError } = await supabase
-          .from("appointments")
-          .select("slot_id, status")
-          .in("slot_id", ids);
-        if (appointmentsError) throw appointmentsError;
-        const bookedIds = new Set(
-          appointments
-            .filter((appointment) => !["cancelled", "rejected"].includes(appointment.status))
-            .map((appointment) => appointment.slot_id),
-        );
-        return slots.map((slot) => ({ ...slot, booked: bookedIds.has(slot.id) }));
+        const slots = await apiGetAvailabilitySlots(me!.id);
+        return slots
+          .filter(
+            (slot) =>
+              slot.slot_date >= dateKey(range.start) &&
+              slot.slot_date <= dateKey(range.end),
+          )
+          .map((slot) => ({
+            ...slot,
+            location_type: slot.location_type === "online" ? "online" : "in_person",
+            booked: !slot.open,
+          }));
       },
     });
 
@@ -150,23 +145,17 @@ export const Route = createFileRoute("/_authenticated/availability")({
           throw new Error("End time must be after the start time.");
         }
         const values = {
-          lecturer_id: me.id,
           slot_date: form.date,
           start_time: form.start,
           end_time: form.end,
-          location_type: form.locationType,
+          location_type: form.locationType === "online" ? "online" as const : "physical" as const,
           location: form.location.trim(),
           notes: form.notes.trim() || null,
         };
         if (editing) {
-          const { error } = await supabase
-            .from("availability_slots")
-            .update(values)
-            .eq("id", editing.id);
-          if (error) throw error;
+          await apiUpdateAvailabilitySlot(editing.id, values);
         } else {
-          const { error } = await supabase.from("availability_slots").insert(values);
-          if (error) throw error;
+          await apiCreateAvailabilitySlot(values);
         }
       },
       onSuccess: () => {
@@ -180,8 +169,7 @@ export const Route = createFileRoute("/_authenticated/availability")({
     const deleteMutation = useMutation({
       mutationFn: async (slot: SlotWithStatus) => {
         if (slot.booked) throw new Error("Booked slots cannot be deleted.");
-        const { error } = await supabase.from("availability_slots").delete().eq("id", slot.id);
-        if (error) throw error;
+        await apiDeleteAvailabilitySlot(slot.id);
       },
       onSuccess: () => {
         toast.success("Availability slot deleted");

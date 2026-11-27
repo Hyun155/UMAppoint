@@ -47,6 +47,12 @@ function Dashboard() {
       <h2 className="mb-3 text-lg font-semibold text-foreground">Active appointments</h2>
       {q.isLoading ? (
         <p className="text-sm text-muted-foreground">Loading appointments…</p>
+      ) : q.isError ? (
+        <div className="rounded-xl border border-destructive/30 bg-card p-5 text-sm text-destructive">
+          Could not load appointments from the UMAppoint backend. Check that the API is running
+          and your session is valid, then refresh this page.
+          {q.error instanceof Error ? <p className="mt-2">{q.error.message}</p> : null}
+        </div>
       ) : active.length === 0 ? (
         <EmptyState title="No active appointments" />
       ) : (

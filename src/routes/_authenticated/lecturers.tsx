@@ -90,54 +90,49 @@ export const Route = createFileRoute("/_authenticated/lecturers")({
       retry: false,
     });
 
-    // ── Unified list: use backend data when available, else fallback to demo ─
+    // Real sessions must display only records returned by FastAPI.
+    // Static lecturer data is available only in explicitly selected preview mode.
     const unifiedList: UnifiedLecturer[] = useMemo(() => {
-      if (backendLecturers && backendLecturers.length > 0) {
-        return backendLecturers.map((l: LecturerOut, idx: number) => {
-          const colors = [
-            "bg-primary-soft text-primary",
-            "bg-info-soft text-info",
-            "bg-success-soft text-success",
-            "bg-warning-soft text-warning",
-          ];
-          const nameParts = l.full_name.trim().split(/\s+/);
-          const firstChar = nameParts[0]?.charAt(0) ?? "D";
-          const lastChar = nameParts[nameParts.length - 1]?.charAt(0) ?? "R";
-          const inits = (firstChar + lastChar).toUpperCase();
-          const color = colors[idx % colors.length] ?? "bg-primary-soft text-primary";
-
-          return {
-            id: l.id,
-            title: l.title || "Dr.",
-            name: l.full_name,
-            department: l.department,
-            specialisation: l.specialization || "General Academic Advising",
-            office: l.office_location || "FCSIT, Universiti Malaya",
-            slotsCount: l.open_slots?.length || 0,
-            initials: inits || "DR",
-            color,
-            rules:
-              l.consultation_info ||
-              "Please arrive prepared with specific questions or materials to discuss.",
-            rawSlots: l.open_slots,
-          };
-        });
+      if (isPreview) {
+        return demoLecturers.map((d) => ({
+          id: d.id,
+          title: d.title,
+          name: d.name,
+          department: d.department,
+          specialisation: d.specialisation,
+          office: d.office,
+          slotsCount: d.slots,
+          initials: d.initials,
+          color: d.color,
+          rules: d.rules,
+        }));
       }
 
-      // Fallback demo mock list
-      return demoLecturers.map((d) => ({
-        id: d.id,
-        title: d.title,
-        name: d.name,
-        department: d.department,
-        specialisation: d.specialisation,
-        office: d.office,
-        slotsCount: d.slots,
-        initials: d.initials,
-        color: d.color,
-        rules: d.rules,
-      }));
-    }, [backendLecturers]);
+      return (backendLecturers ?? []).map((l: LecturerOut, idx: number) => {
+        const colors = [
+          "bg-primary-soft text-primary",
+          "bg-info-soft text-info",
+          "bg-success-soft text-success",
+          "bg-warning-soft text-warning",
+        ];
+        const nameParts = l.full_name.trim().split(/\s+/);
+        const firstChar = nameParts[0]?.charAt(0) ?? "D";
+        const lastChar = nameParts[nameParts.length - 1]?.charAt(0) ?? "R";
+        return {
+          id: l.id,
+          title: l.title || "Dr.",
+          name: l.full_name,
+          department: l.department,
+          specialisation: l.specialization || "General Academic Advising",
+          office: l.office_location || "FCSIT, Universiti Malaya",
+          slotsCount: l.open_slots?.length || 0,
+          initials: (firstChar + lastChar).toUpperCase(),
+          color: colors[idx % colors.length] ?? "bg-primary-soft text-primary",
+          rules: l.consultation_info || "Please arrive prepared with specific questions or materials to discuss.",
+          rawSlots: l.open_slots,
+        };
+      });
+    }, [backendLecturers, isPreview]);
 
     const filtered = useMemo(() => {
       return unifiedList.filter((l) => {
@@ -164,7 +159,7 @@ export const Route = createFileRoute("/_authenticated/lecturers")({
       if (!selected || !slot || !purpose.trim()) return;
 
       // In demo mode or if selected is a demo lecturer with non-uuid id:
-      if (isPreview || slot.startsWith("slot-")) {
+      if (isPreview) {
         toast.success("Booking request submitted (Demo Mode)", {
           description: "Your lecturer will review the request shortly.",
         });
@@ -241,8 +236,8 @@ export const Route = createFileRoute("/_authenticated/lecturers")({
           </div>
           <p className="hidden text-xs text-muted-foreground sm:block">
             {backendLecturers
-              ? "Live slots from PostgreSQL backend"
-              : "Showing preview availability"}
+              ? (isPreview ? "Preview data" : "Live data from UMAppoint backend")
+              : "Demo data"}
           </p>
         </div>
 

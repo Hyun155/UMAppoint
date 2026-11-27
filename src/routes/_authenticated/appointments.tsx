@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, Clock3, MapPin, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { apiGetSlots, apiRequestCancellation, apiRequestReschedule } from "@/lib/backend";
 import { demoAppointments, formatDisplayDate, StatusPill } from "@/components/portal-ui";
 import { useAuth } from "@/lib/auth";
 import {
@@ -32,6 +34,7 @@ export const Route = createFileRoute("/_authenticated/appointments")({
   component: function AppointmentsPage() {
     const { me, isPreview } = useAuth();
     const [filter, setFilter] = useState("All");
+    const queryClient = useQueryClient();
 
     const hasToken = !!getToken();
 
@@ -42,6 +45,52 @@ export const Route = createFileRoute("/_authenticated/appointments")({
       enabled: !isPreview && hasToken && me?.role === "student",
       retry: false,
     });
+
+    const cancelMutation = useMutation({
+      mutationFn: ({ id, reason }: { id: string; reason: string }) => apiRequestCancellation(id, reason),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["my-appointments"] });
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        toast.success("Cancellation request sent to the lecturer.");
+      },
+      onError: (error) => toast.error(error instanceof Error ? error.message : "Unable to request cancellation."),
+    });
+    const rescheduleMutation = useMutation({
+      mutationFn: ({ id, slotId, reason }: { id: string; slotId: string; reason: string }) =>
+        apiRequestReschedule(id, slotId, reason),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["my-appointments"] });
+        queryClient.invalidateQueries({ queryKey: ["notifications"] });
+        toast.success("Rescheduling request sent to the lecturer.");
+      },
+      onError: (error) => toast.error(error instanceof Error ? error.message : "Unable to request rescheduling."),
+    });
+
+    async function requestReschedule(appointment: AppointmentOut) {
+      try {
+        const slots = (await apiGetSlots(appointment.lecturer_id))
+          .filter((slot) => slot.open && slot.id !== appointment.slot_id);
+        if (slots.length === 0) {
+          window.alert("This lecturer has no other available consultation slots.");
+          return;
+        }
+        const options = slots.slice(0, 20).map((slot, index) =>
+          `${index + 1}. ${fmtDate(slot.slot_date)} · ${fmtTime(slot.start_time)}–${fmtTime(slot.end_time)} · ${slot.location}`
+        ).join("\n");
+        const selected = window.prompt("Select a new consultation slot by number:\n" + options);
+        if (!selected) return;
+        const index = Number(selected) - 1;
+        if (!Number.isInteger(index) || index < 0 || index >= Math.min(slots.length, 20)) {
+          window.alert("Please enter a valid slot number.");
+          return;
+        }
+        const reason = window.prompt("Why do you need to reschedule? (At least 5 characters)");
+        if (!reason || reason.trim().length < 5) return;
+        rescheduleMutation.mutate({ id: appointment.id, slotId: slots[index].id, reason: reason.trim() });
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "Unable to load available slots.");
+      }
+    }
 
     const items: NormalizedAppointment[] = useMemo(() => {
       // 1. If real appointments are loaded from FastAPI:
@@ -71,7 +120,10 @@ export const Route = createFileRoute("/_authenticated/appointments")({
           }));
       }
 
-      // 2. Demo mode / fallback: show demo appointments immediately
+      // Do not display sample records for authenticated users.
+      if (!isPreview && hasToken && me?.role === "student") return [];
+
+      // Preview mode only: show sample appointments.
       return demoAppointments
         .filter((a) => {
           if (filter === "All") return true;
@@ -172,6 +224,33 @@ export const Route = createFileRoute("/_authenticated/appointments")({
                   <span className="font-medium">Purpose: </span> {a.purpose}
                 </p>
 
+                {a.status.toLowerCase() === "approved" && realAppointments?.some((item) => item.id === a.id) && (
+                  <div className="mt-4">
+                    <Button size="sm" variant="outline" disabled={rescheduleMutation.isPending} onClick={() => {
+                      const appointment = realAppointments?.find((item) => item.id === a.id);
+                      if (appointment) void requestReschedule(appointment);
+                    }}>
+                      {rescheduleMutation.isPending ? "Submitting..." : "Request reschedule"}
+                    </Button>
+                  </div>
+                )}
+                {(a.status.toLowerCase() === "pending" || a.status.toLowerCase() === "approved") && (
+                  <div className="mt-4">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={cancelMutation.isPending}
+                      onClick={() => {
+                        const reason = window.prompt("Why do you need to cancel this appointment?");
+                        if (reason && reason.trim().length >= 5) {
+                          cancelMutation.mutate({ id: a.id, reason: reason.trim() });
+                        }
+                      }}
+                    >
+                      {cancelMutation.isPending ? "Submitting..." : "Request cancellation"}
+                    </Button>
+                  </div>
+                )}
                 {a.lecturerNote && (
                   <p className="mt-2 text-xs italic text-muted-foreground">
                     Lecturer response note: {a.lecturerNote}

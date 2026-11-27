@@ -5,153 +5,186 @@ Faculty of Computer Science and Information Technology (FCSIT), Universiti
 Malaya.
 
 Students can find lecturers, view available consultation slots, and submit
-booking requests. Lecturers can manage their availability, review requests,
-and keep their consultation schedule in one place.
+booking requests. Lecturers can manage availability, review requests, and keep
+their consultation schedule in one place.
 
-## Features
+## Current architecture
 
-- Email/password authentication with separate student and lecturer roles
-- Lecturer search by name, department, or specialisation
-- Availability and consultation-slot management
-- Booking and rescheduling requests
-- Role-specific dashboards, schedules, appointment history, and profiles
-- Notifications for booking and schedule changes
-- Responsive layout for desktop and mobile screens
-- Supabase-backed authentication and application data
+- **Frontend:** React 19, TypeScript, TanStack Start/Router, Vite, Tailwind CSS, Radix UI
+- **Backend:** FastAPI, SQLAlchemy, Python
+- **Database:** Supabase-hosted PostgreSQL
+- **Authentication:** FastAPI JWT authentication with password hashes stored in `public.app_credentials`
+- **Testing:** Vitest/Testing Library (frontend) and Pytest/FastAPI TestClient (backend)
 
-## Tech stack
+The frontend contains both FastAPI API calls and existing Supabase JS data access.
+See `docs/IMPLEMENTATION_GAP_AUDIT.md` for the current integration risks and
+the planned work to standardise authenticated data access through FastAPI.
 
-- [React](https://react.dev/) 19
-- [TanStack Start](https://tanstack.com/start) and TanStack Router
-- [Vite](https://vite.dev/)
-- [TypeScript](https://www.typescriptlang.org/)
-- [Supabase](https://supabase.com/) for authentication and data
-- [Tailwind CSS](https://tailwindcss.com/) and Radix UI
-- [Vitest](https://vitest.dev/) and Testing Library
-
-## Getting started
-
-### Prerequisites
+## Prerequisites
 
 - Node.js 18 or newer
-- Bun, npm, or another Node.js package manager
-- A Supabase project, unless you are developing through the connected Lovable
-  project
+- Bun (recommended) or npm
+- Python 3.11+
+- Access to the UMAppoint Supabase project and its PostgreSQL database
 
-### Installation
-
-Clone the repository and install dependencies:
+## Clone and install
 
 ```bash
-git clone https://github.com/Hyun155/build-it-together.git
-cd build-it-together
+git clone https://github.com/GeokLiu/UMAppoint.git
+cd UMAppoint
 bun install
 ```
 
-If you do not use Bun, `npm install` works as well.
+With npm, use `npm install` instead of `bun install`.
 
-### Environment variables
+## Configure the frontend
 
-The app requires a Supabase URL and publishable key. For local Vite
-development, create a `.env.local` file in the project root:
+Create a root-level `.env.local` file. Do not commit this file.
 
 ```env
+VITE_API_URL=http://127.0.0.1:8000
 VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+VITE_SUPABASE_PUBLISHABLE_KEY=your-supabase-publishable-key
 ```
 
-Do not commit `.env.local` or any service-role key. Server-side integrations
-may also use `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and
-`SUPABASE_SERVICE_ROLE_KEY` when those variables are provided by the
-deployment environment.
+The publishable key is intended for browser use. Never put a Supabase
+service-role key or PostgreSQL password in frontend environment variables.
 
-### Run the development server
+## Configure the backend
+
+Open a second terminal:
+
+```powershell
+cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+```
+
+Edit `backend/.env` with the database password supplied by the Supabase
+project owner and a unique random JWT secret of at least 32 characters:
+
+```env
+DB_URL=postgresql://postgres:YOUR_DATABASE_PASSWORD@db.your-project.supabase.co:5432/postgres
+JWT_SECRET=replace-with-a-long-random-secret
+JWT_EXPIRY_MINUTES=1440
+```
+
+Keep `backend/.env` private. Do not paste credentials into GitHub issues,
+source files, screenshots, or chat messages.
+
+Start the backend:
+
+```powershell
+uvicorn main:app --reload --host 127.0.0.1 --port 8000
+```
+
+- API health: http://127.0.0.1:8000/api/health
+- Swagger: http://127.0.0.1:8000/docs
+
+## Start the frontend
+
+In the repository root, open another terminal:
 
 ```bash
 bun run dev
 ```
 
-Open the local URL printed by Vite, usually
-`http://localhost:5173`.
+Open the local URL printed by Vite (normally http://localhost:5173).
 
-## Available scripts
+## Main application routes
 
-| Command              | Description                          |
-| -------------------- | ------------------------------------ |
-| `bun run dev`        | Start the Vite development server    |
-| `bun run build`      | Create a production build            |
-| `bun run build:dev`  | Create a development-mode build      |
-| `bun run preview`    | Preview the production build locally |
-| `bun run lint`       | Run ESLint                           |
-| `bun run format`     | Format the project with Prettier     |
-| `bun run test`       | Run the test suite once              |
-| `bun run test:watch` | Run Vitest in watch mode             |
-
-The equivalent `npm run <script>` commands are also supported.
-
-## Application routes
-
-### Public routes
-
+### Public
 - `/` — Landing page
-- `/auth` — Sign in and account registration
+- `/auth` — Sign in and registration
 
-### Authenticated student routes
-
+### Student
 - `/dashboard` — Student overview
-- `/lecturers` — Find lecturers and available slots
+- `/lecturers` — Lecturer directory and available slots
 - `/appointments` — Upcoming appointments
-- `/history` — Previous consultation history
-- `/notifications` — Account notifications
+- `/history` — Previous consultations
+- `/notifications` — Notifications
 - `/profile` — Profile settings
 
-### Authenticated lecturer routes
-
+### Lecturer
 - `/dashboard` — Lecturer overview
-- `/requests` — Review booking and change requests
+- `/requests` — Review booking requests
 - `/schedule` — Consultation schedule
 - `/availability` — Manage available slots
 - `/history` — Consultation history
-- `/notifications` — Account notifications
+- `/notifications` — Notifications
 - `/profile` — Profile settings
 
-Authenticated routes redirect unauthenticated users to `/auth`.
+## Useful commands
 
-## Demo accounts
+Run from the repository root:
 
-The sign-in page includes demo-account buttons for local or presentation use:
+| Command | Description |
+|---|---|
+| `bun run dev` | Start frontend development server |
+| `bun run build` | Create production build |
+| `bun run lint` | Run ESLint |
+| `bun run test` | Run frontend tests |
+| `bun run format` | Format project files |
 
-- Demo student: `aiman.student@demo.umappoint.edu`
-- Demo lecturer: `nurul.hakim@demo.umappoint.edu`
-- Password: `Demo@1234`
+Run backend tests from the `backend` directory:
 
-These accounts depend on the connected Supabase project being configured.
+```powershell
+pytest
+```
+
+Backend tests require a dedicated test database and valid test accounts.
+Do not run destructive tests against production data.
+
+## Database and account setup
+
+The backend uses the PostgreSQL tables in the connected Supabase project.
+The FastAPI login verifies password hashes in `public.app_credentials`;
+Supabase Auth password records are not automatically interchangeable with
+these custom backend credentials.
+
+A project owner should provision and verify at least one student and one
+lecturer test account before end-to-end testing. The lecturer account must
+have the lecturer role in `public.user_roles`. Do not use a student JWT to
+test lecturer-only endpoints.
+
+Do not assume demo credentials work until the matching `app_credentials`
+records have been created and verified.
 
 ## Project structure
 
 ```text
+backend/
+  app/
+    routers/
+    config.py
+    database.py
+    models.py
+    schemas.py
+    security.py
+  tests/
 src/
-├── components/            Shared application and UI components
-├── integrations/supabase/ Supabase clients and generated types
-├── lib/                   Authentication, API, formatting, and utilities
-├── routes/                TanStack file-based routes
-└── test/                  Vitest and Testing Library tests
-drizzle/                   Database schema and migrations
-supabase/                  Supabase local configuration
+  components/
+  integrations/supabase/
+  lib/
+  routes/
+  test/
+drizzle/
+supabase/
+docs/
 ```
 
 `src/routeTree.gen.ts` is generated by TanStack Router. Do not edit it
 manually.
 
-## Development with Lovable
+## Development notes
 
-This repository is connected to [Lovable](https://lovable.dev). You can
-continue development in the
-[UMAppoint Lovable project](https://lovable.dev/projects/ffffcebd-5066-4950-857d-d3d0788ba560).
-
-Changes made in Lovable are committed to this repository. Avoid rewriting
-published Git history because commits pushed to the connected branch are
-synchronized back to Lovable.
+- Keep database passwords, JWT secrets, and service-role keys out of Git.
+- Keep Supabase Row Level Security enabled.
+- Do not silently substitute demo data when a real authenticated API request fails.
+- Do not force-push or rewrite the Lovable-synchronized `main` branch.
+- Review `docs/IMPLEMENTATION_GAP_AUDIT.md` before continuing implementation.
 
 ## License
 

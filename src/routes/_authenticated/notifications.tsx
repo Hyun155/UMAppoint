@@ -115,7 +115,9 @@ export const Route = createFileRoute("/_authenticated/notifications")({
       queryKey: ["notifications"],
       queryFn: apiGetNotifications,
       enabled: hasToken && !isPreview,
-      staleTime: 30_000,
+      staleTime: 10_000,
+      refetchInterval: 30_000,
+      refetchOnWindowFocus: true,
     });
 
     const isLive = hasToken && !isPreview;

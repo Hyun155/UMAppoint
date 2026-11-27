@@ -37,6 +37,8 @@ interface NormalizedRequest {
   purpose: string;
   status: string;
   lecturerNote: string | null;
+  studentReason: string | null;
+  proposedTime: string | null;
 }
 
 const DEMO_REQUESTS = [
@@ -77,15 +79,12 @@ export const Route = createFileRoute("/_authenticated/requests")({
     const {
       data: realRequests,
       isLoading,
-      refetch,
     } = useQuery({
       queryKey: ["lecturer-appointments", kind],
-      queryFn: () => apiGetLecturerAppointments(kind === "pending" ? "pending" : undefined),
+      queryFn: () => apiGetLecturerAppointments(),
       enabled: !isPreview && hasToken && me?.role === "lecturer",
       retry: false,
     });
-
-    const isPendingKind = kind === "pending";
 
     // ── Approve appointment (Step 4) ────────────────────────────────────────
     async function handleApprove(id: string) {
@@ -98,9 +97,12 @@ export const Route = createFileRoute("/_authenticated/requests")({
 
       setActionId(id);
       try {
-        await apiUpdateStatus(id, "APPROVED");
-        toast.success("Appointment approved!", {
-          description: "The time slot is now confirmed for this student.",
+        const requestStatus = realRequests?.find((request) => request.id === id)?.status?.toLowerCase();
+        await apiUpdateStatus(id, requestStatus === "cancellation_requested" ? "CANCELLED" : "APPROVED");
+        toast.success(requestStatus === "cancellation_requested" ? "Appointment cancellation confirmed" : "Appointment approved!", {
+          description: requestStatus === "cancellation_requested"
+            ? "The appointment has been cancelled and its slot is available again."
+            : "The consultation time is now confirmed for this student.",
         });
         qc.invalidateQueries({ queryKey: ["lecturer-appointments"] });
       } catch (err: unknown) {
@@ -124,10 +126,21 @@ export const Route = createFileRoute("/_authenticated/requests")({
 
       setActionId(rejecting);
       try {
-        await apiUpdateStatus(rejecting, "REJECTED", reason);
-        toast.success("Appointment rejected", {
-          description: "The slot has been released back to OPEN for other students.",
-        });
+        const requestStatus = realRequests?.find((request) => request.id === rejecting)?.status?.toLowerCase();
+        const decision = requestStatus === "cancellation_requested" ? "APPROVED" : "REJECTED";
+        await apiUpdateStatus(rejecting, decision, reason);
+        toast.success(
+          requestStatus === "rescheduling_requested"
+            ? "Reschedule request declined"
+            : requestStatus === "cancellation_requested"
+              ? "Cancellation request declined"
+              : "Appointment rejected",
+          {
+            description: requestStatus === "rescheduling_requested" || requestStatus === "cancellation_requested"
+              ? "The original approved appointment remains unchanged."
+              : "The requested slot has been released back to OPEN for other students.",
+          },
+        );
         setRejecting(null);
         setReason("");
         qc.invalidateQueries({ queryKey: ["lecturer-appointments"] });
@@ -142,7 +155,9 @@ export const Route = createFileRoute("/_authenticated/requests")({
 
     const items: NormalizedRequest[] = useMemo(() => {
       if (realRequests && realRequests.length > 0) {
-        return realRequests.map((r) => ({
+        return realRequests
+          .filter((r) => kind === "all" || ["pending", "cancellation_requested", "rescheduling_requested"].includes(r.status.toLowerCase()))
+          .map((r) => ({
           id: r.id,
           ref_code: r.ref_code,
           studentName:
@@ -155,6 +170,10 @@ export const Route = createFileRoute("/_authenticated/requests")({
           purpose: r.purpose,
           status: r.status,
           lecturerNote: r.lecturer_note,
+          studentReason: r.student_request_reason ?? null,
+          proposedTime: r.reschedule_date
+            ? `${fmtDate(r.reschedule_date)} · ${fmtTime(r.reschedule_start_time ?? "")}–${fmtTime(r.reschedule_end_time ?? "")} · ${r.reschedule_location ?? "Location to be confirmed"}`
+            : null,
         }));
       }
 
@@ -171,11 +190,13 @@ export const Route = createFileRoute("/_authenticated/requests")({
           purpose: d.purpose,
           status: d.status,
           lecturerNote: null,
+          studentReason: null,
+          proposedTime: null,
         }));
       }
 
       return [];
-    }, [realRequests, isPreview]);
+    }, [realRequests, isPreview, kind]);
 
     return (
       <div>
@@ -185,7 +206,7 @@ export const Route = createFileRoute("/_authenticated/requests")({
           action={
             <StatusPill tone="warning">
               {realRequests
-                ? `${realRequests.filter((r) => r.status === "pending").length} pending`
+                ? `${realRequests.filter((r) => ["pending", "cancellation_requested", "rescheduling_requested"].includes(r.status.toLowerCase())).length} pending`
                 : "Preview"}
             </StatusPill>
           }
@@ -222,7 +243,9 @@ export const Route = createFileRoute("/_authenticated/requests")({
         ) : (
           <div className="space-y-3">
             {items.map((r: NormalizedRequest) => {
-              const isPending = (r.status || "").toLowerCase() === "pending";
+              const currentStatus = (r.status || "").toLowerCase();
+              const isPending = ["pending", "cancellation_requested", "rescheduling_requested"].includes(currentStatus);
+              const actionLabel = currentStatus === "cancellation_requested" ? "Confirm cancellation" : currentStatus === "rescheduling_requested" ? "Approve new time" : "Approve";
 
               return (
                 <article key={r.id} className="rounded-xl border bg-card p-5 shadow-card">
@@ -280,6 +303,16 @@ export const Route = createFileRoute("/_authenticated/requests")({
                     {r.purpose}
                   </p>
 
+                  {r.proposedTime && (
+                    <p className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+                      <span className="font-medium">Requested new time: </span>{r.proposedTime}
+                    </p>
+                  )}
+                  {r.studentReason && (
+                    <p className="mt-3 rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm">
+                      <span className="font-medium">Student request reason: </span>{r.studentReason}
+                    </p>
+                  )}
                   {r.lecturerNote && (
                     <p className="mt-2 text-xs text-muted-foreground italic">
                       Lecturer note: {r.lecturerNote}
@@ -298,7 +331,7 @@ export const Route = createFileRoute("/_authenticated/requests")({
                         ) : (
                           <Check className="h-4 w-4 mr-1" />
                         )}
-                        Approve
+                        {actionLabel}
                       </Button>
                       <Button
                         size="sm"
@@ -307,7 +340,11 @@ export const Route = createFileRoute("/_authenticated/requests")({
                         onClick={() => setRejecting(r.id)}
                       >
                         <X className="h-4 w-4 mr-1" />
-                        Reject
+                        {currentStatus === "cancellation_requested"
+                          ? "Keep appointment"
+                          : currentStatus === "rescheduling_requested"
+                            ? "Decline new time"
+                            : "Reject"}
                       </Button>
                     </div>
                   )}
@@ -321,10 +358,15 @@ export const Route = createFileRoute("/_authenticated/requests")({
         <Dialog open={!!rejecting} onOpenChange={(o) => !o && setRejecting(null)}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Reject booking request</DialogTitle>
+              <DialogTitle>
+                {realRequests?.find((request) => request.id === rejecting)?.status === "rescheduling_requested"
+                  ? "Decline reschedule request"
+                  : realRequests?.find((request) => request.id === rejecting)?.status === "cancellation_requested"
+                    ? "Decline cancellation request"
+                    : "Reject booking request"}
+              </DialogTitle>
               <DialogDescription>
-                Provide a short reason so the student understands why. The time slot will
-                automatically be reopened for other students.
+                Provide a short reason so the student understands your decision. Declining a change request keeps the original approved appointment; rejecting a new booking releases its requested slot.
               </DialogDescription>
             </DialogHeader>
             <Textarea
@@ -338,7 +380,7 @@ export const Route = createFileRoute("/_authenticated/requests")({
                 Cancel
               </Button>
               <Button variant="destructive" disabled={!reason.trim()} onClick={handleReject}>
-                Confirm Rejection & Reopen Slot
+                Confirm Decision
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -8,13 +8,13 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AuthProvider } from "@/lib/auth";
 import { Toaster } from "@/components/ui/sonner";
-import { supabase } from "@/integrations/supabase/client";
+import { ChatAssistant } from "@/components/ChatAssistant";
 
 function NotFoundComponent() {
   return (
@@ -122,21 +122,16 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const router = useRouter();
 
-  useEffect(() => {
-    const { data } = supabase.auth.onAuthStateChange((event) => {
-      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
-      router.invalidate();
-      if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
-    });
-    return () => data.subscription.unsubscribe();
-  }, [router, queryClient]);
-
+  // UMAppoint authentication is handled by the FastAPI JWT session in AuthProvider.
+  // Do not initialize a second Supabase Auth client here: it is unrelated to the
+  // FastAPI session and can crash the whole application when optional Supabase
+  // browser environment variables are not injected into the local Vite runtime.
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <Outlet />
+        <ChatAssistant />
         <Toaster richColors position="top-right" />
       </AuthProvider>
     </QueryClientProvider>

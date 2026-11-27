@@ -3,7 +3,7 @@
  * HTTP client for the FastAPI backend at VITE_API_URL (default: http://localhost:8000)
  */
 
-const API_URL = (import.meta.env["VITE_API_URL"] as string | undefined) ?? "http://localhost:8000";
+const API_URL = import.meta.env.VITE_API_URL?.replace(/\/+$/, "") || "http://127.0.0.1:8002";
 
 const TOKEN_KEY = "uma_token";
 const USER_KEY = "uma_user";
@@ -92,6 +92,10 @@ export interface AppointmentOut {
   status: string;
   lecturer_note: string | null;
   student_request_reason: string | null;
+  reschedule_date?: string | null;
+  reschedule_start_time?: string | null;
+  reschedule_end_time?: string | null;
+  reschedule_location?: string | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -141,7 +145,7 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
         res = await fetch(`${fallbackBase}${path}`, init);
       } catch {
         throw new Error(
-          "Cannot connect to backend server at http://localhost:8000. Please ensure uvicorn is running on port 8000.",
+          `Cannot connect to backend server at ${API_URL}. Please ensure the UMAppoint FastAPI server is running.`,
         );
       }
     } else {
@@ -182,6 +186,15 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
   return res.json() as Promise<T>;
 }
 
+export interface ChatReply {
+  answer: string;
+  suggestions: string[];
+}
+
+export async function apiSendChatMessage(message: string): Promise<ChatReply> {
+  return req<ChatReply>("POST", "/api/chat/message", { message });
+}
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 export async function apiLogin(email: string, password: string): Promise<AuthResponse> {
@@ -217,6 +230,38 @@ export async function apiGetLecturers(
 
 export async function apiGetSlots(lecturerId: string): Promise<SlotOut[]> {
   return req<SlotOut[]>("GET", `/api/lecturers/${lecturerId}/slots`);
+}
+
+export interface AvailabilitySlotPayload {
+  slot_date: string;
+  start_time: string;
+  end_time: string;
+  location_type: "physical" | "online";
+  location: string;
+  notes?: string | null;
+}
+
+export async function apiGetAvailabilitySlots(lecturerId: string): Promise<SlotOut[]> {
+  return apiGetSlots(lecturerId);
+}
+
+export async function apiCreateAvailabilitySlot(
+  payload: AvailabilitySlotPayload,
+): Promise<SlotOut> {
+  return req<SlotOut>("POST", "/api/lecturers/slots", payload);
+}
+
+export async function apiUpdateAvailabilitySlot(
+  slotId: string,
+  payload: Partial<AvailabilitySlotPayload>,
+): Promise<SlotOut> {
+  return req<SlotOut>("PATCH", `/api/lecturers/slots/${slotId}`, payload);
+}
+
+export async function apiDeleteAvailabilitySlot(
+  slotId: string,
+): Promise<{ message: string; slot_id: string }> {
+  return req<{ message: string; slot_id: string }>("DELETE", `/api/lecturers/slots/${slotId}`);
 }
 
 // ── Appointments ──────────────────────────────────────────────────────────────
@@ -307,4 +352,13 @@ export function fmtDate(d: string): string {
     month: "short",
     year: "numeric",
   });
+}
+
+
+export async function apiRequestCancellation(id: string, reason: string): Promise<AppointmentOut> {
+  return req<AppointmentOut>("POST", `/api/appointments/${id}/cancellation-request`, { reason });
+}
+
+export async function apiRequestReschedule(id: string, slotId: string, reason: string): Promise<AppointmentOut> {
+  return req<AppointmentOut>("POST", `/api/appointments/${id}/reschedule-request`, { slot_id: slotId, reason });
 }
